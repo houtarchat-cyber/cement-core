@@ -1,0 +1,5 @@
+access_key:
+  endpoint: "<yourEndpoint>"
+  access_key_id: "<yourAccessKeyId>"
+  access_key_secret: "<yourAccessKeySecret>"
+  bucket_name: "<yourBucketName>"
