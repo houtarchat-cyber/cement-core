@@ -38,12 +38,12 @@ func userLogin(username string, password string) string {
 	return "login success"
 }
 
-func userRegister(username string, password string) string{
+func userRegister(username string, password string) string {
 	bucket := getBucket()
 	username = base64.StdEncoding.EncodeToString([]byte(username))
 	password = fmt.Sprintf("%x", md5.Sum([]byte(password)))
 
-	isExist, err := bucket.IsObjectExist("users/" + username )
+	isExist, err := bucket.IsObjectExist("users/" + username)
 	if err != nil {
 		return err.Error()
 	}
@@ -51,7 +51,7 @@ func userRegister(username string, password string) string{
 		return "user already exist"
 	}
 
-	err = bucket.PutObject("users/" + username, strings.NewReader(password))
+	err = bucket.PutObject("users/"+username, strings.NewReader(password))
 	if err != nil {
 		return err.Error()
 	}

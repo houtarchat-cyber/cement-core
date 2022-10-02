@@ -1,10 +1,10 @@
 package main
 
 import (
-	"net/http"
-	"io/ioutil"
 	"encoding/base64"
 	"encoding/json"
+	"io/ioutil"
+	"net/http"
 )
 
 func getCaptcha(timestamp string) string {
