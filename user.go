@@ -55,5 +55,10 @@ func userRegister(username string, password string) string {
 	if err != nil {
 		return err.Error()
 	}
+
+	err = bucket.PutObject("files/"+username+"/", strings.NewReader(""))
+	if err != nil {
+		return err.Error()
+	}
 	return "register success"
 }
