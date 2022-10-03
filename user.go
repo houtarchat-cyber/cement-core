@@ -1,4 +1,4 @@
-package main
+package cement
 
 import (
 	"crypto/md5"
