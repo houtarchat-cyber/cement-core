@@ -2,9 +2,10 @@ package cement
 
 import (
 	"fmt"
+	"io/ioutil"
+
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
 )
 
 func readConfig() (string, string, string, string) {
@@ -20,17 +21,12 @@ func readConfig() (string, string, string, string) {
 	return config["access_key"]["endpoint"], config["access_key"]["access_key_id"], config["access_key"]["access_key_secret"], config["access_key"]["bucket_name"]
 }
 
-func getClient() *oss.Client {
+func getBucket() *oss.Bucket {
 	endpoint, accessKeyId, accessKeySecret, bucketName := readConfig()
 	client, err := oss.New(endpoint, accessKeyId, accessKeySecret)
 	if err != nil {
 		fmt.Println("Error:", err)
 	}
-	return client
-}
-
-func getBucket() *oss.Bucket {
-	client := getClient()
 	bucket, err := client.Bucket(bucketName)
 	if err != nil {
 		fmt.Println("Error:", err)
