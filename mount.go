@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path"
@@ -18,7 +19,7 @@ import (
 )
 
 func Serve(bind, keyPrefix string) error {
-	bucket := GetBucket()
+	bucket := getBucket()
 	keyPrefix = "files/" + base64.StdEncoding.EncodeToString([]byte(keyPrefix))
 
 	return http.ListenAndServe(bind, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -71,29 +72,85 @@ func Serve(bind, keyPrefix string) error {
 				w.WriteHeader(http.StatusMultiStatus)
 				w.Header().Set("Content-Type", "application/xml; charset=UTF-8")
 
-				w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>`))
-				w.Write([]byte(`<D:multistatus xmlns:D="DAV:">`))
+				_, err = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>`))
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				_, err = w.Write([]byte(`<D:multistatus xmlns:D="DAV:">`))
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
 				for _, object := range objects {
-					w.Write([]byte(`<D:response>`))
-					w.Write([]byte(`<D:href>`))
+					_, err := w.Write([]byte(`<D:response>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(`<D:href>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
 					if object.Key != r.URL.Path {
-						w.Write([]byte(`http://` + r.Host + r.URL.Path + object.Key[len(keyPrefix+r.URL.Path):]))
+						_, err := w.Write([]byte(`http://` + r.Host + r.URL.Path + object.Key[len(keyPrefix+r.URL.Path):]))
+						if err != nil {
+							w.WriteHeader(http.StatusInternalServerError)
+							return
+						}
 						// w.Write([]byte(r.URL.Path + object.Key[len(keyPrefix+r.URL.Path):]))
 					} else {
-						w.Write([]byte(`http://` + r.Host + r.URL.Path))
+						_, err := w.Write([]byte(`http://` + r.Host + r.URL.Path))
+						if err != nil {
+							w.WriteHeader(http.StatusInternalServerError)
+							return
+						}
 					}
-					w.Write([]byte(`</D:href>`))
-					w.Write([]byte(`<D:propstat>`))
-					w.Write([]byte(`<D:prop>`))
-					w.Write([]byte(`<D:getcontentlength>`))
-					w.Write([]byte(strconv.FormatInt(object.Size, 10)))
-					w.Write([]byte(`</D:getcontentlength>`))
-					w.Write([]byte(`<D:getcontenttype>`))
+					_, err = w.Write([]byte(`</D:href>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(`<D:propstat>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(`<D:prop>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(`<D:getcontentlength>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(strconv.FormatInt(object.Size, 10)))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(`</D:getcontentlength>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(`<D:getcontenttype>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
 					// if object is a directory, set content type to http.DetectContentType([]byte(""))
 					if object.Key != r.URL.Path && object.Key[len(keyPrefix+r.URL.Path):] != "" {
 						// if content type is empty, set it to application/octet-stream
 						if http.DetectContentType([]byte(object.Key)) == "" {
-							w.Write([]byte("application/octet-stream"))
+							_, err := w.Write([]byte("application/octet-stream"))
+							if err != nil {
+								w.WriteHeader(http.StatusInternalServerError)
+								return
+							}
 						} else if http.DetectContentType([]byte(object.Key)) == "text/plain" {
 							// get file extension
 							fileExtension := filepath.Ext(object.Key)
@@ -103,42 +160,146 @@ func Serve(bind, keyPrefix string) error {
 								contentType := mime.TypeByExtension(fileExtension)
 								// if content type is not empty, set it to content type
 								if contentType != "" {
-									w.Write([]byte(contentType))
+									_, err := w.Write([]byte(contentType))
+									if err != nil {
+										w.WriteHeader(http.StatusInternalServerError)
+										return
+									}
 								}
 							}
 						} else {
-							w.Write([]byte(http.DetectContentType([]byte(object.Key))))
+							_, err := w.Write([]byte(http.DetectContentType([]byte(object.Key))))
+							if err != nil {
+								w.WriteHeader(http.StatusInternalServerError)
+								return
+							}
 						}
 					}
-					w.Write([]byte(`</D:getcontenttype>`))
-					w.Write([]byte(`<D:getlastmodified>`))
-					w.Write([]byte(object.LastModified.Format(time.RFC1123)))
-					w.Write([]byte(`</D:getlastmodified>`))
-					w.Write([]byte(`<D:getetag>`))
-					w.Write([]byte(object.ETag))
-					w.Write([]byte(`</D:getetag>`))
-					w.Write([]byte(`<D:supportedlock>`))
-					w.Write([]byte(`<D:lockentry xmlns:D="DAV:">`))
-					w.Write([]byte(`<D:lockscope><D:exclusive/></D:lockscope>`))
-					w.Write([]byte(`<D:locktype><D:write/></D:locktype>`))
-					w.Write([]byte(`</D:lockentry>`))
-					w.Write([]byte(`</D:supportedlock>`))
-					w.Write([]byte(`<D:resourcetype>`))
+					_, err = w.Write([]byte(`</D:getcontenttype>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(`<D:getlastmodified>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(object.LastModified.Format(time.RFC1123)))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(`</D:getlastmodified>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(`<D:getetag>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(object.ETag))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(`</D:getetag>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(`<D:supportedlock>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(`<D:lockentry xmlns:D="DAV:">`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(`<D:lockscope><D:exclusive/></D:lockscope>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(`<D:locktype><D:write/></D:locktype>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(`</D:lockentry>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(`</D:supportedlock>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(`<D:resourcetype>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
 					if object.Key == r.URL.Path {
-						w.Write([]byte(`<D:collection/>`))
+						_, err := w.Write([]byte(`<D:collection/>`))
+						if err != nil {
+							w.WriteHeader(http.StatusInternalServerError)
+							return
+						}
 					}
-					w.Write([]byte(`</D:resourcetype>`))
-					w.Write([]byte(`<D:displayname>`))
+					_, err = w.Write([]byte(`</D:resourcetype>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(`<D:displayname>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
 					if object.Key != r.URL.Path {
-						w.Write([]byte(object.Key[len(keyPrefix+r.URL.Path):]))
+						_, err = w.Write([]byte(object.Key[len(keyPrefix+r.URL.Path):]))
+						if err != nil {
+							w.WriteHeader(http.StatusInternalServerError)
+							return
+						}
 					}
-					w.Write([]byte(`</D:displayname>`))
-					w.Write([]byte(`</D:prop>`))
-					w.Write([]byte(`<D:status>HTTP/1.1 200 OK</D:status>`))
-					w.Write([]byte(`</D:propstat>`))
-					w.Write([]byte(`</D:response>`))
+					_, err = w.Write([]byte(`</D:displayname>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(`</D:prop>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(`<D:status>HTTP/1.1 200 OK</D:status>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(`</D:propstat>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					_, err = w.Write([]byte(`</D:response>`))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
 				}
-				w.Write([]byte(`</D:multistatus>`))
+				_, err = w.Write([]byte(`</D:multistatus>`))
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
 
 				return
 			} else {
@@ -280,7 +441,7 @@ func Serve(bind, keyPrefix string) error {
 						url = url[:len(url)-1]
 					}
 					size := object.Size
-					// human readable size
+					// human-readable size
 					var sizeStr string
 					if size < 1024 {
 						sizeStr = fmt.Sprintf("%d B", size)
@@ -292,7 +453,7 @@ func Serve(bind, keyPrefix string) error {
 						sizeStr = fmt.Sprintf("%.2f GB", float64(size)/1024/1024/1024)
 					}
 					lastModified := object.LastModified
-					// human readable last modified
+					// human-readable last modified
 					var lastModifiedStr string
 					// if time.Now().Sub(lastModified) < 24*time.Hour {
 					if time.Since(lastModified) < 24*time.Hour {
@@ -322,7 +483,12 @@ func Serve(bind, keyPrefix string) error {
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
-				defer file.Close()
+				defer func(file io.ReadCloser) {
+					err := file.Close()
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+					}
+				}(file)
 				// get oss object meta
 				meta, err := bucket.GetObjectDetailedMeta(keyPrefix + r.URL.Path)
 				if err != nil {
@@ -379,7 +545,12 @@ func Serve(bind, keyPrefix string) error {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			defer file.Close()
+			defer func(file multipart.File) {
+				err := file.Close()
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+			}(file)
 			// get file name
 			name := header.Filename
 			// get file size
@@ -485,11 +656,11 @@ func Serve(bind, keyPrefix string) error {
 				return
 			}
 
-			cache_control := r.Header.Get("Cache-Control")
-			content_disposition := r.Header.Get("Content-Disposition")
-			content_encoding := r.Header.Get("Content-Encoding")
-			content_language := r.Header.Get("Content-Language")
-			content_type := r.Header.Get("Content-Type")
+			cacheControl := r.Header.Get("Cache-Control")
+			contentDisposition := r.Header.Get("Content-Disposition")
+			contentEncoding := r.Header.Get("Content-Encoding")
+			contentLanguage := r.Header.Get("Content-Language")
+			contentType := r.Header.Get("Content-Type")
 			expires, err := http.ParseTime(r.Header.Get("Expires"))
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
@@ -512,11 +683,11 @@ func Serve(bind, keyPrefix string) error {
 
 			// set oss object meta
 			options := []oss.Option{
-				oss.CacheControl(cache_control),
-				oss.ContentDisposition(content_disposition),
-				oss.ContentEncoding(content_encoding),
-				oss.ContentLanguage(content_language),
-				oss.ContentType(content_type),
+				oss.CacheControl(cacheControl),
+				oss.ContentDisposition(contentDisposition),
+				oss.ContentEncoding(contentEncoding),
+				oss.ContentLanguage(contentLanguage),
+				oss.ContentType(contentType),
 				oss.Expires(expires),
 			}
 

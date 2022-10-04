@@ -1,7 +1,7 @@
 package cement_test
 
 import (
-	"cement"
+	"github.com/houtarchat-cyber/cement-core"
 	"testing"
 )
 

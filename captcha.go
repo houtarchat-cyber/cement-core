@@ -15,7 +15,12 @@ func GetCaptcha(timestamp string) string {
 	if err != nil {
 		return ""
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser, err *error) {
+		*err = Body.Close()
+	}(resp.Body, &err)
+	if err != nil {
+		return ""
+	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return ""
@@ -29,7 +34,12 @@ func CheckCaptcha(captcha string, timestamp string) bool {
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser, err *error) {
+		*err = Body.Close()
+	}(resp.Body, &err)
+	if err != nil {
+		return false
+	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return false
@@ -41,9 +51,10 @@ func CheckCaptcha(captcha string, timestamp string) bool {
 	if err != nil {
 		return false
 	}
-	retcode := data["retcode"].(float64)
+	//goland:noinspection SpellCheckingInspection
+	retCode := data["retcode"].(float64)
 
-	if retcode == 0 {
+	if retCode == 0 {
 		return true
 	} else {
 		return false

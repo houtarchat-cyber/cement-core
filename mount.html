@@ -5,32 +5,31 @@
 <head>
 <meta charset="utf-8">
 <meta name="color-scheme" content="light dark">
-<meta name="google" value="notranslate">
 
 <script>
-function addRow(name, url, isdir,
-    size, size_string, date_modified, date_modified_string) {
-  if (name == "." || name == "..")
+function addRow(name, url, isDir,
+                size, size_string, date_modified, date_modified_string) {
+  if (name === "." || name === "..")
     return;
 
-  var root = document.location.pathname;
+  let root = document.location.pathname;
   if (root.substr(-1) !== "/")
     root += "/";
 
-  var tbody = document.getElementById("tbody");
-  var row = document.createElement("tr");
-  var file_cell = document.createElement("td");
-  var link = document.createElement("a");
+  const tbody = document.getElementById("tbody");
+  const row = document.createElement("tr");
+  const file_cell = document.createElement("td");
+  const link = document.createElement("a");
 
-  link.className = isdir ? "icon dir" : "icon file";
+  link.className = isDir ? "icon dir" : "icon file";
 
-  if (isdir) {
+  if (isDir) {
     name = name + "/";
     url = url + "/";
     size = 0;
     size_string = "";
   } else {
-    link.draggable = "true";
+    link.draggable = true;
     link.addEventListener("dragstart", onDragStart, false);
   }
   link.innerText = name;
@@ -47,15 +46,15 @@ function addRow(name, url, isdir,
 }
 
 function onDragStart(e) {
-  var el = e.srcElement;
-  var name = el.innerText.replace(":", "");
-  var download_url_data = "application/octet-stream:" + name + ":" + el.href;
+  const el = e.target;
+  const name = el.innerText.replace(":", "");
+  const download_url_data = "application/octet-stream:" + name + ":" + el.href;
   e.dataTransfer.setData("DownloadURL", download_url_data);
   e.dataTransfer.effectAllowed = "copy";
 }
 
 function createCell(value, text) {
-  var cell = document.createElement("td");
+  const cell = document.createElement("td");
   cell.setAttribute("class", "detailsColumn");
   cell.dataset.value = value;
   cell.innerText = text;
@@ -63,41 +62,41 @@ function createCell(value, text) {
 }
 
 function start(location) {
-  var header = document.getElementById("header");
+  const header = document.getElementById("header");
   header.innerText = header.innerText.replace("LOCATION", location);
 
   document.getElementById("title").innerText = header.innerText;
 }
 
 function onHasParentDirectory() {
-  var box = document.getElementById("parentDirLinkBox");
+  const box = document.getElementById("parentDirLinkBox");
   box.style.display = "block";
 
-  var root = document.location.pathname;
+  let root = document.location.pathname;
   if (!root.endsWith("/"))
     root += "/";
 
-  var link = document.getElementById("parentDirLink");
+  const link = document.getElementById("parentDirLink");
   link.href = root + "..";
 }
 
 function sortTable(column) {
-  var theader = document.getElementById("theader");
-  var oldOrder = theader.cells[column].dataset.order || '1';
+  const tableHeader = document.getElementById("tableHeader");
+  let oldOrder = tableHeader.cells[column].dataset.order || '1';
   oldOrder = parseInt(oldOrder, 10)
-  var newOrder = 0 - oldOrder;
-  theader.cells[column].dataset.order = newOrder;
+  const newOrder = 0 - oldOrder;
+  tableHeader.cells[column].dataset.order = newOrder.toString();
 
-  var tbody = document.getElementById("tbody");
-  var rows = tbody.rows;
-  var list = [], i;
+  const tbody = document.getElementById("tbody");
+  const rows = tbody.rows;
+  let list = [], i;
   for (i = 0; i < rows.length; i++) {
     list.push(rows[i]);
   }
 
-  list.sort(function(row1, row2) {
-    var a = row1.cells[column].dataset.value;
-    var b = row2.cells[column].dataset.value;
+  list.sort(function (row1, row2) {
+    let a = row1.cells[column].dataset.value;
+    let b = row2.cells[column].dataset.value;
     if (column) {
       a = parseInt(a, 10);
       b = parseInt(b, 10);
@@ -120,9 +119,9 @@ function sortTable(column) {
 
 // Add event handlers to column headers.
 function addHandlers(element, column) {
-  element.onclick = (e) => sortTable(column);
+  element.onclick = () => sortTable(column);
   element.onkeydown = (e) => {
-    if (e.key == 'Enter' || e.key == ' ') {
+    if (e.key === 'Enter' || e.key === ' ') {
       sortTable(column);
       e.preventDefault();
     }
@@ -209,15 +208,15 @@ window.addEventListener('DOMContentLoaded', onLoad);
 
 <table>
   <thead>
-    <tr class="header" id="theader">
-      <th id="nameColumnHeader" tabindex=0 role="button">名称</th>
-      <th id="sizeColumnHeader" class="detailsColumn" tabindex=0 role="button">
-        大小
-      </th>
-      <th id="dateColumnHeader" class="detailsColumn" tabindex=0 role="button">
-        修改日期
-      </th>
-    </tr>
+  <tr class="header" id="tableHeader">
+    <th id="nameColumnHeader" tabindex=0 role="button">名称</th>
+    <th id="sizeColumnHeader" class="detailsColumn" tabindex=0 role="button">
+      大小
+    </th>
+    <th id="dateColumnHeader" class="detailsColumn" tabindex=0 role="button">
+      修改日期
+    </th>
+  </tr>
   </thead>
   <tbody id="tbody">
   </tbody>
@@ -231,7 +230,7 @@ window.addEventListener('DOMContentLoaded', onLoad);
 // found in the LICENSE file.
 
 /**
- * @fileoverview This file defines a singleton which provides access to all data
+ * @file-overview This file defines a singleton which provides access to all data
  * that is available as soon as the page's resources are loaded (before DOM
  * content has finished loading). This data includes both localized strings and
  * any data that is important to have ready from a very early stage (e.g. things
@@ -243,8 +242,7 @@ window.addEventListener('DOMContentLoaded', onLoad);
  */
 
 /** @type {!LoadTimeData} */
-// eslint-disable-next-line no-var
-var loadTimeData;
+let loadTimeData;
 
 class LoadTimeData {
   constructor() {
@@ -321,7 +319,7 @@ class LoadTimeData {
    * second to the tenth argument. Any standalone $ signs must be escaped as
    * $$.
    * @param {string} label The label to substitute through.
-   *     This is not an resource ID.
+   *     This is not a resource ID.
    * @param {...(string|number)} var_args The extra values to include in the
    *     formatted output.
    * @return {string} The formatted string.
@@ -339,7 +337,7 @@ class LoadTimeData {
    * tenth argument, split apart into a list of pieces describing how the
    * substitution was performed. Any standalone $ signs must be escaped as $$.
    * @param {string} label A localized string to substitute through.
-   *     This is not an resource ID.
+   *     This is not a resource ID.
    * @param {...(string|number)} var_args The extra values to include in the
    *     formatted output.
    * @return {!Array<!{value: string, arg: (null|string)}>} The formatted
@@ -349,22 +347,20 @@ class LoadTimeData {
     const varArgs = arguments;
     // Split the string by separately matching all occurrences of $1-9 and of
     // non $1-9 pieces.
-    const pieces = (label.match(/(\$[1-9])|(([^$]|\$([^1-9]|$))+)/g) ||
-                    []).map(function(p) {
+    return (label.match(/(\$[1-9])|(([^$]|\$([^1-9]|$))+)/g) ||
+            []).map(function (p) {
       // Pieces that are not $1-9 should be returned after replacing $$
       // with $.
       if (!p.match(/^\$[1-9]$/)) {
         expect(
-            (p.match(/\$/g) || []).length % 2 === 0,
-            'Unescaped $ found in localized string.');
+                (p.match(/\$/g) || []).length % 2 === 0,
+                'Unescaped $ found in localized string.');
         return {value: p.replace(/\$\$/g, '$'), arg: null};
       }
 
       // Otherwise, return the substitution value.
       return {value: varArgs[p[1]], arg: p};
     });
-
-    return pieces;
   }
 
   /**
@@ -443,12 +439,21 @@ class LoadTimeData {
         typeof value === type, '[' + value + '] (' + id + ') is not a ' + type);
   }
 
-  expect(!loadTimeData, 'should only include this file once');
-  loadTimeData = new LoadTimeData();
+expect(!loadTimeData, 'should only include this file once');
+loadTimeData = new LoadTimeData();
 
-  // Expose |loadTimeData| directly on |window|, since within a JS module the
-  // scope is local and not all files have been updated to import the exported
-  // |loadTimeData| explicitly.
-  window.loadTimeData = loadTimeData;
+// Expose |loadTimeData| directly on |window|, since within a JS module the
+// scope is local and not all files have been updated to import the exported
+// |loadTimeData| explicitly.
+window.loadTimeData = loadTimeData;
 
-  console.warn('crbug/1173575, non-JS module files deprecated.');</script><script>loadTimeData.data = {"header":"LOCATION 的索引","headerDateModified":"修改日期","headerName":"名称","headerSize":"大小","language":"zh","parentDirText":"[上级目录]","textdirection":"ltr"};</script>
+console.warn('crbug/1173575, non-JS module files deprecated.');</script>
+<script>loadTimeData.data = {
+  "header": "LOCATION 的索引",
+  "headerDateModified": "修改日期",
+  "headerName": "名称",
+  "headerSize": "大小",
+  "language": "zh",
+  "parentDirText": "[上级目录]",
+  "textDirection": "ltr"
+};</script>

@@ -10,11 +10,11 @@ import (
 	"time"
 )
 
-func ChannelCreate(channelname string) error {
-	bucket := GetBucket()
-	channelname = base64.StdEncoding.EncodeToString([]byte(channelname))
+func ChannelCreate(channelName string) error {
+	bucket := getBucket()
+	channelName = base64.StdEncoding.EncodeToString([]byte(channelName))
 
-	isExist, err := bucket.IsObjectExist("channels/" + channelname)
+	isExist, err := bucket.IsObjectExist("channels/" + channelName)
 	if err != nil {
 		return err
 	}
@@ -22,18 +22,18 @@ func ChannelCreate(channelname string) error {
 		return errors.New("channel already exist")
 	}
 
-	_, err = bucket.AppendObject("channels/"+channelname, strings.NewReader(""), 0)
+	_, err = bucket.AppendObject("channels/"+channelName, strings.NewReader(""), 0)
 
 	return err
 }
 
-func ChannelSend(channelname string, username string, message string) error {
-	bucket := GetBucket()
-	channelname = base64.StdEncoding.EncodeToString([]byte(channelname))
+func ChannelSend(channelName string, username string, message string) error {
+	bucket := getBucket()
+	channelName = base64.StdEncoding.EncodeToString([]byte(channelName))
 	username = base64.StdEncoding.EncodeToString([]byte(username))
 	message = base64.StdEncoding.EncodeToString([]byte(message))
 
-	isExist, err := bucket.IsObjectExist("channels/" + channelname)
+	isExist, err := bucket.IsObjectExist("channels/" + channelName)
 	if err != nil {
 		return err
 	}
@@ -41,9 +41,9 @@ func ChannelSend(channelname string, username string, message string) error {
 		return errors.New("channel not exist")
 	}
 
-	json := "{\"time\":\"" + time.Now().Format("2006-01-02 15:04:05") + "\",\"username\":\"" + username + "\",\"message\":\"" + message + "\"}\n"
+	j := "{\"time\":\"" + time.Now().Format("2006-01-02 15:04:05") + "\",\"username\":\"" + username + "\",\"message\":\"" + message + "\"}\n"
 
-	props, err := bucket.GetObjectDetailedMeta("channels/" + channelname)
+	props, err := bucket.GetObjectDetailedMeta("channels/" + channelName)
 	if err != nil {
 		return err
 	}
@@ -51,22 +51,22 @@ func ChannelSend(channelname string, username string, message string) error {
 	if err != nil {
 		return err
 	}
-	_, err = bucket.AppendObject("channels/"+channelname, strings.NewReader(json), nextPos)
+	_, err = bucket.AppendObject("channels/"+channelName, strings.NewReader(j), nextPos)
 
 	return err
 }
 
-type Messages struct {
+type messages struct {
 	Time     string `json:"time"`
 	Username string `json:"username"`
 	Message  string `json:"message"`
 }
 
-func ChannelReceive(channelname string) ([]Messages, error) {
-	bucket := GetBucket()
-	channelname = base64.StdEncoding.EncodeToString([]byte(channelname))
+func ChannelReceive(channelName string) ([]messages, error) {
+	bucket := getBucket()
+	channelName = base64.StdEncoding.EncodeToString([]byte(channelName))
 
-	isExist, err := bucket.IsObjectExist("channels/" + channelname)
+	isExist, err := bucket.IsObjectExist("channels/" + channelName)
 	if err != nil {
 		return nil, err
 	}
@@ -74,22 +74,27 @@ func ChannelReceive(channelname string) ([]Messages, error) {
 		return nil, errors.New("channel not exist")
 	}
 
-	channelfile, err := bucket.GetObject("channels/" + channelname)
+	channelFile, err := bucket.GetObject("channels/" + channelName)
 	if err != nil {
 		return nil, err
 	}
 
-	defer channelfile.Close()
-
-	channel, err := io.ReadAll(channelfile)
+	defer func(channelFile io.ReadCloser, err *error) {
+		*err = channelFile.Close()
+	}(channelFile, &err)
 	if err != nil {
 		return nil, err
 	}
 
-	var messageList []Messages
+	channel, err := io.ReadAll(channelFile)
+	if err != nil {
+		return nil, err
+	}
+
+	var messageList []messages
 
 	for _, line := range strings.Split(string(channel), "\n") {
-		var message Messages
+		var message messages
 		err = json.Unmarshal([]byte(line), &message)
 		if err != nil {
 			break

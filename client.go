@@ -8,7 +8,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func ReadConfig() (string, string, string, string) {
+func readConfig() (string, string, string, string) {
 	yamlFile, err := os.ReadFile("access_key.yaml")
 	if err != nil {
 		fmt.Println(err.Error())
@@ -21,8 +21,8 @@ func ReadConfig() (string, string, string, string) {
 	return config["access_key"]["endpoint"], config["access_key"]["access_key_id"], config["access_key"]["access_key_secret"], config["access_key"]["bucket_name"]
 }
 
-func GetBucket() *oss.Bucket {
-	endpoint, accessKeyId, accessKeySecret, bucketName := ReadConfig()
+func getBucket() *oss.Bucket {
+	endpoint, accessKeyId, accessKeySecret, bucketName := readConfig()
 	client, err := oss.New(endpoint, accessKeyId, accessKeySecret)
 	if err != nil {
 		fmt.Println("Error:", err)

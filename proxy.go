@@ -19,7 +19,12 @@ func GetClashConfig(url string) []byte {
 	if err != nil {
 		panic(err)
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			panic(err)
+		}
+	}(resp.Body)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -37,7 +42,7 @@ func Proxy(conf []byte) {
 
 	constant.SetHomeDir(currentDir)
 
-	err = InitMMDB()
+	err = initMMDB()
 	if err != nil {
 		panic(err)
 	}
@@ -54,10 +59,10 @@ func Proxy(conf []byte) {
 	<-sigCh
 }
 
-func InitMMDB() error {
+func initMMDB() error {
 	if _, err := os.Stat(constant.Path.MMDB()); os.IsNotExist(err) {
 		log.Infoln("Can't find MMDB, start download")
-		if err := DownloadMMDB(constant.Path.MMDB()); err != nil {
+		if err := downloadMMDB(constant.Path.MMDB()); err != nil {
 			return fmt.Errorf("can't download MMDB: %s", err.Error())
 		}
 	}
@@ -68,7 +73,7 @@ func InitMMDB() error {
 			return fmt.Errorf("can't remove invalid MMDB: %s", err.Error())
 		}
 
-		if err := DownloadMMDB(constant.Path.MMDB()); err != nil {
+		if err := downloadMMDB(constant.Path.MMDB()); err != nil {
 			return fmt.Errorf("can't download MMDB: %s", err.Error())
 		}
 	}
@@ -76,18 +81,28 @@ func InitMMDB() error {
 	return nil
 }
 
-func DownloadMMDB(path string) (err error) {
+func downloadMMDB(path string) (err error) {
 	resp, err := http.Get("https://cdn.jsdelivr.net/gh/Dreamacro/maxmind-geoip@release/Country.mmdb")
 	if err != nil {
-		return
+		return err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser, err *error) {
+		*err = Body.Close()
+	}(resp.Body, &err)
+	if err != nil {
+		return err
+	}
 
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func(f *os.File, err *error) {
+		*err = f.Close()
+	}(f, &err)
+	if err != nil {
+		return err
+	}
 	_, err = io.Copy(f, resp.Body)
 
 	return err

@@ -10,7 +10,7 @@ import (
 )
 
 func UserLogin(username string, password string) error {
-	bucket := GetBucket()
+	bucket := getBucket()
 	username = base64.StdEncoding.EncodeToString([]byte(username))
 	password = fmt.Sprintf("%x", md5.Sum([]byte(password)))
 
@@ -21,14 +21,19 @@ func UserLogin(username string, password string) error {
 	if !isExist {
 		return errors.New("user not exist")
 	}
-	pwdfile, err := bucket.GetObject("users/" + username)
+	passwordFile, err := bucket.GetObject("users/" + username)
 	if err != nil {
 		return err
 	}
 
-	defer pwdfile.Close()
+	defer func(passwordFile io.ReadCloser, err *error) {
+		*err = passwordFile.Close()
+	}(passwordFile, &err)
+	if err != nil {
+		return err
+	}
 
-	pwd, err := io.ReadAll(pwdfile)
+	pwd, err := io.ReadAll(passwordFile)
 	if err != nil {
 		return err
 	}
@@ -40,7 +45,7 @@ func UserLogin(username string, password string) error {
 }
 
 func UserCreate(username string, password string) error {
-	bucket := GetBucket()
+	bucket := getBucket()
 	username = base64.StdEncoding.EncodeToString([]byte(username))
 	password = fmt.Sprintf("%x", md5.Sum([]byte(password)))
 

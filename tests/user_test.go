@@ -1,7 +1,7 @@
 package cement_test
 
 import (
-	"cement"
+	"github.com/houtarchat-cyber/cement-core"
 	"testing"
 )
 
@@ -28,7 +28,7 @@ func TestUser(t *testing.T) {
 	if err == nil {
 		t.Error("login with a wrong password")
 	}
-	// login with a exist user
+	// login with an exist user
 	err = cement.UserLogin(timestamp, "test")
 	if err != nil {
 		t.Error(err)

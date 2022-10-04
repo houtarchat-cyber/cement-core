@@ -1,12 +1,17 @@
 package cement_test
 
 import (
-	"cement"
+	"github.com/houtarchat-cyber/cement-core"
 	"testing"
 	"time"
 )
 
 func TestMount(t *testing.T) {
-	go cement.Serve(":8080", "test")
+	go func() {
+		err := cement.Serve(":8080", "test")
+		if err != nil {
+			t.Error(err)
+		}
+	}()
 	time.Sleep(500 * time.Millisecond)
 }
