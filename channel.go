@@ -3,56 +3,57 @@ package cement
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"strconv"
 	"strings"
 	"time"
 )
 
-func channelCreate(channelname string) string {
-	bucket := getBucket()
+func ChannelCreate(channelname string) error {
+	bucket := GetBucket()
 	channelname = base64.StdEncoding.EncodeToString([]byte(channelname))
 
 	isExist, err := bucket.IsObjectExist("channels/" + channelname)
 	if err != nil {
-		return err.Error()
+		return err
 	}
 	if isExist {
-		return "channel already exist"
+		return errors.New("channel already exist")
 	}
 
 	_, err = bucket.AppendObject("channels/"+channelname, strings.NewReader(""), 0)
 
-	return "create success"
+	return err
 }
 
-func channelSend(channelname string, username string, message string) string {
-	bucket := getBucket()
+func ChannelSend(channelname string, username string, message string) error {
+	bucket := GetBucket()
 	channelname = base64.StdEncoding.EncodeToString([]byte(channelname))
 	username = base64.StdEncoding.EncodeToString([]byte(username))
 	message = base64.StdEncoding.EncodeToString([]byte(message))
 
 	isExist, err := bucket.IsObjectExist("channels/" + channelname)
 	if err != nil {
-		return err.Error()
+		return err
 	}
 	if !isExist {
-		return "channel not exist"
+		return errors.New("channel not exist")
 	}
 
 	json := "{\"time\":\"" + time.Now().Format("2006-01-02 15:04:05") + "\",\"username\":\"" + username + "\",\"message\":\"" + message + "\"}\n"
 
 	props, err := bucket.GetObjectDetailedMeta("channels/" + channelname)
 	if err != nil {
-		return err.Error()
+		return err
 	}
 	nextPos, err := strconv.ParseInt(props.Get("X-Oss-Next-Append-Position"), 10, 64)
 	if err != nil {
-		return err.Error()
+		return err
 	}
 	_, err = bucket.AppendObject("channels/"+channelname, strings.NewReader(json), nextPos)
 
-	return "send success"
+	return err
 }
 
 type Messages struct {
@@ -61,28 +62,28 @@ type Messages struct {
 	Message  string `json:"message"`
 }
 
-func channelReceive(channelname string) ([]Messages, string) {
-	bucket := getBucket()
+func ChannelReceive(channelname string) ([]Messages, error) {
+	bucket := GetBucket()
 	channelname = base64.StdEncoding.EncodeToString([]byte(channelname))
 
 	isExist, err := bucket.IsObjectExist("channels/" + channelname)
 	if err != nil {
-		return nil, err.Error()
+		return nil, err
 	}
 	if !isExist {
-		return nil, "channel not exist"
+		return nil, errors.New("channel not exist")
 	}
 
 	channelfile, err := bucket.GetObject("channels/" + channelname)
 	if err != nil {
-		return nil, err.Error()
+		return nil, err
 	}
 
 	defer channelfile.Close()
 
 	channel, err := ioutil.ReadAll(channelfile)
 	if err != nil {
-		return nil, err.Error()
+		return nil, err
 	}
 
 	var messageList []Messages
@@ -100,5 +101,5 @@ func channelReceive(channelname string) ([]Messages, string) {
 		messageList = append(messageList, message)
 	}
 
-	return messageList, "receive success"
+	return messageList, nil
 }

@@ -3,11 +3,13 @@ package cement
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
+	"time"
 )
 
-func getCaptcha(timestamp string) string {
+func GetCaptcha(timestamp string) string {
 	url := "https://webservice.forclass.net/Account/GetRegisterCaptcha?stamp=" + timestamp
 	resp, err := http.Get(url)
 	if err != nil {
@@ -21,7 +23,7 @@ func getCaptcha(timestamp string) string {
 	return base64.StdEncoding.EncodeToString(body)
 }
 
-func checkCaptcha(captcha string, timestamp string) bool {
+func CheckCaptcha(captcha string, timestamp string) bool {
 	url := "https://webservice.forclass.net/Account/ValidateRegisterCode?stamp=" + timestamp + "&code=" + captcha
 	resp, err := http.Get(url)
 	if err != nil {
@@ -46,4 +48,10 @@ func checkCaptcha(captcha string, timestamp string) bool {
 	} else {
 		return false
 	}
+}
+
+func GetTimestamp() string {
+	// get timestamp
+	timestamp := time.Now().Unix()
+	return fmt.Sprintf("%d", timestamp)
 }

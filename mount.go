@@ -18,7 +18,7 @@ import (
 )
 
 func Serve(bind, keyPrefix string) error {
-	bucket := getBucket()
+	bucket := GetBucket()
 	keyPrefix = "files/" + base64.StdEncoding.EncodeToString([]byte(keyPrefix))
 
 	return http.ListenAndServe(bind, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

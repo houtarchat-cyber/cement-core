@@ -3,62 +3,63 @@ package cement
 import (
 	"crypto/md5"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"strings"
 )
 
-func userLogin(username string, password string) string {
-	bucket := getBucket()
+func UserLogin(username string, password string) error {
+	bucket := GetBucket()
 	username = base64.StdEncoding.EncodeToString([]byte(username))
 	password = fmt.Sprintf("%x", md5.Sum([]byte(password)))
 
 	isExist, err := bucket.IsObjectExist("users/" + username)
 	if err != nil {
-		return err.Error()
+		return err
 	}
 	if !isExist {
-		return "user not exist"
+		return errors.New("user not exist")
 	}
 	pwdfile, err := bucket.GetObject("users/" + username)
 	if err != nil {
-		return err.Error()
+		return err
 	}
 
 	defer pwdfile.Close()
 
 	pwd, err := ioutil.ReadAll(pwdfile)
 	if err != nil {
-		return err.Error()
+		return err
 	}
 
 	if string(pwd) != password {
-		return "password error"
+		return errors.New("password error")
 	}
-	return "login success"
+	return nil
 }
 
-func userRegister(username string, password string) string {
-	bucket := getBucket()
+func UserCreate(username string, password string) error {
+	bucket := GetBucket()
 	username = base64.StdEncoding.EncodeToString([]byte(username))
 	password = fmt.Sprintf("%x", md5.Sum([]byte(password)))
 
 	isExist, err := bucket.IsObjectExist("users/" + username)
 	if err != nil {
-		return err.Error()
+		return err
 	}
 	if isExist {
-		return "user already exist"
+		return errors.New("user already exist")
 	}
 
 	err = bucket.PutObject("users/"+username, strings.NewReader(password))
 	if err != nil {
-		return err.Error()
+		return err
 	}
 
 	err = bucket.PutObject("files/"+username+"/", strings.NewReader(""))
 	if err != nil {
-		return err.Error()
+		return err
 	}
-	return "register success"
+	return nil
 }
