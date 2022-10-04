@@ -1,4 +1,4 @@
-module Cement
+module cement
 
 go 1.19
 
