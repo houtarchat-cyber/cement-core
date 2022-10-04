@@ -1,22 +1,25 @@
 package cement
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"mime"
 	"net/http"
+	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 )
 
-// usage
-// err := Serve(":8080", "files")
-
 func Serve(bind, keyPrefix string) error {
 	bucket := getBucket()
+	keyPrefix = "files/" + base64.StdEncoding.EncodeToString([]byte(keyPrefix))
 
 	return http.ListenAndServe(bind, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("Method:", r.Method)
@@ -26,124 +29,10 @@ func Serve(bind, keyPrefix string) error {
 		fmt.Println("Body:", r.Body)
 
 		if r.Method == http.MethodOptions {
-			w.Header().Set("DAV", "1, 2")
+			w.Header().Set("DAV", "1")
 			w.Header().Set("MS-Author-Via", "DAV")
-			w.Header().Set("Allow", "OPTIONS, GET, HEAD, DELETE, PUT, PROPFIND, PROPPATCH, COPY, MOVE, LOCK, UNLOCK")
+			w.Header().Set("Allow", "OPTIONS, PROPFIND, PROPPATCH, MKCOL, GET, HEAD, POST, DELETE, PUT, COPY, MOVE, LOCK, UNLOCK")
 			w.Header().Set("Content-Length", "0")
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		if r.Method == http.MethodGet {
-			isObjectExist, err := bucket.IsObjectExist(keyPrefix + r.URL.Path)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			if !isObjectExist {
-				w.WriteHeader(http.StatusNotFound)
-				return
-			}
-			file, err := bucket.GetObject(keyPrefix + r.URL.Path)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			defer file.Close()
-			// get oss object meta
-			meta, err := bucket.GetObjectDetailedMeta(keyPrefix + r.URL.Path)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			// set response header
-			for k, v := range meta {
-				for _, vv := range v {
-					w.Header().Add(k, vv)
-				}
-			}
-			// set response status code
-			w.WriteHeader(http.StatusOK)
-			// copy object to response writer
-			_, err = io.Copy(w, file)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			return
-		}
-		if r.Method == http.MethodHead {
-			isObjectExist, err := bucket.IsObjectExist(keyPrefix + r.URL.Path)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			if !isObjectExist {
-				w.WriteHeader(http.StatusNotFound)
-				return
-			}
-			// get oss object meta
-			meta, err := bucket.GetObjectDetailedMeta(keyPrefix + r.URL.Path)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			// set response header
-			for k, v := range meta {
-				for _, vv := range v {
-					w.Header().Add(k, vv)
-				}
-			}
-			// set response status code
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		if r.Method == http.MethodPut {
-			cache_control := r.Header.Get("Cache-Control")
-			content_disposition := r.Header.Get("Content-Disposition")
-			content_encoding := r.Header.Get("Content-Encoding")
-			content_language := r.Header.Get("Content-Language")
-			content_type := r.Header.Get("Content-Type")
-			expires, err := http.ParseTime(r.Header.Get("Expires"))
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-
-			// set oss object meta
-			options := []oss.Option{
-				oss.CacheControl(cache_control),
-				oss.ContentDisposition(content_disposition),
-				oss.ContentEncoding(content_encoding),
-				oss.ContentLanguage(content_language),
-				oss.ContentType(content_type),
-				oss.Expires(expires),
-			}
-
-			// put object
-			err = bucket.PutObject(keyPrefix+r.URL.Path, r.Body, options...)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		if r.Method == http.MethodDelete {
-			// if object not exist, return 404
-			isObjectExist, err := bucket.IsObjectExist(keyPrefix + r.URL.Path)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			if !isObjectExist {
-				w.WriteHeader(http.StatusNotFound)
-				return
-			}
-			err = bucket.DeleteObject(keyPrefix + r.URL.Path)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
 			w.WriteHeader(http.StatusOK)
 			return
 		}
@@ -179,7 +68,7 @@ func Serve(bind, keyPrefix string) error {
 					}
 				}
 
-				// w.WriteHeader(http.StatusOK)
+				w.WriteHeader(http.StatusMultiStatus)
 				w.Header().Set("Content-Type", "application/xml; charset=UTF-8")
 
 				w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>`))
@@ -188,9 +77,10 @@ func Serve(bind, keyPrefix string) error {
 					w.Write([]byte(`<D:response>`))
 					w.Write([]byte(`<D:href>`))
 					if object.Key != r.URL.Path {
-						w.Write([]byte(r.URL.Path + object.Key[len(keyPrefix+r.URL.Path):]))
+						w.Write([]byte(`http://` + r.Host + r.URL.Path + object.Key[len(keyPrefix+r.URL.Path):]))
+						// w.Write([]byte(r.URL.Path + object.Key[len(keyPrefix+r.URL.Path):]))
 					} else {
-						w.Write([]byte(r.URL.Path))
+						w.Write([]byte(`http://` + r.Host + r.URL.Path))
 					}
 					w.Write([]byte(`</D:href>`))
 					w.Write([]byte(`<D:propstat>`))
@@ -279,7 +169,7 @@ func Serve(bind, keyPrefix string) error {
 				var propfindResponse = `<?xml version="1.0" encoding="UTF-8" ?>
 <D:multistatus xmlns:D="DAV:">
 <D:response>
-<D:href>` + r.URL.Path + `</D:href>
+<D:href>` + `http://` + r.Host + r.URL.Path + `</D:href>
 <D:propstat>
 <D:prop>
 <D:resourcetype>
@@ -297,7 +187,7 @@ func Serve(bind, keyPrefix string) error {
 `
 
 				// set response status code
-				w.WriteHeader(http.StatusOK)
+				w.WriteHeader(http.StatusMultiStatus)
 
 				// write response
 				_, err = w.Write([]byte(propfindResponse))
@@ -307,6 +197,626 @@ func Serve(bind, keyPrefix string) error {
 				}
 				return
 			}
+		}
+		if r.Method == "PROPPATCH" {
+			// return 500 because PROPPATCH is not supported
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if r.Method == "MKCOL" {
+			if r.URL.Path == "/" {
+				w.WriteHeader(http.StatusConflict)
+				return
+			}
+			// check if parent dir exist
+			// for example, if request path is /a/b/c, we need to check if /a/b exist
+			parentDir := path.Dir(r.URL.Path)
+			if parentDir == "." {
+				parentDir = "/"
+			}
+			isParentDirExist, err := bucket.IsObjectExist(keyPrefix + parentDir)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			if !isParentDirExist {
+				w.WriteHeader(http.StatusConflict)
+				return
+			}
+
+			// if request content length is 0, create a dir
+			if r.ContentLength == 0 {
+				err = bucket.PutObject(keyPrefix+r.URL.Path, strings.NewReader(""))
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				w.WriteHeader(http.StatusCreated)
+				return
+			} else {
+				w.WriteHeader(http.StatusUnsupportedMediaType)
+				return
+			}
+		}
+		if r.Method == http.MethodGet {
+			isObjectExist, err := bucket.IsObjectExist(keyPrefix + r.URL.Path)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			if !isObjectExist {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			if strings.HasSuffix(r.URL.Path, "/") {
+				// get all objects under the dir
+				objects, err := bucket.ListObjects(oss.Prefix(keyPrefix + r.URL.Path))
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				// get html from mount.html
+				htmlB, err := ioutil.ReadFile("mount.html")
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				html := string(htmlB)
+				html += `<script>start("` + r.URL.Path + `");</script>`
+				// if not root dir, add parent dir link
+				if r.URL.Path != "/" {
+					html += `<script>onHasParentDirectory();</script>`
+				}
+				for _, object := range objects.Objects {
+					if object.Key == keyPrefix+r.URL.Path {
+						continue
+					}
+					name := object.Key[len(keyPrefix)+1:]
+					url := object.Key[len(keyPrefix)+1:]
+					isDir := "0"
+					if strings.HasSuffix(object.Key, "/") {
+						isDir = "1"
+						name = name[:len(name)-1]
+						url = url[:len(url)-1]
+					}
+					size := object.Size
+					// human readable size
+					var sizeStr string
+					if size < 1024 {
+						sizeStr = fmt.Sprintf("%d B", size)
+					} else if size < 1024*1024 {
+						sizeStr = fmt.Sprintf("%.2f KB", float64(size)/1024)
+					} else if size < 1024*1024*1024 {
+						sizeStr = fmt.Sprintf("%.2f MB", float64(size)/1024/1024)
+					} else {
+						sizeStr = fmt.Sprintf("%.2f GB", float64(size)/1024/1024/1024)
+					}
+					lastModified := object.LastModified
+					// human readable last modified
+					var lastModifiedStr string
+					if time.Now().Sub(lastModified) < 24*time.Hour {
+						lastModifiedStr = lastModified.In(time.Local).Format("15:04")
+					} else {
+						lastModifiedStr = lastModified.In(time.Local).Format("2006-01-02")
+					}
+					html += `<script>addRow("` + name + `","` + url + `",` + isDir + `,` +
+						strconv.FormatInt(size, 10) + `,"` + sizeStr + `",` +
+						strconv.FormatInt(lastModified.Unix(), 10) + `,"` +
+						lastModifiedStr + `");</script>`
+				}
+				// set response header
+				w.Header().Set("Content-Type", "text/html")
+				w.Header().Set("Content-Length", strconv.Itoa(len(html)))
+				// write response
+				_, err = w.Write([]byte(html))
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				return
+			} else {
+				// if is a file, return the file
+				file, err := bucket.GetObject(keyPrefix + r.URL.Path)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				defer file.Close()
+				// get oss object meta
+				meta, err := bucket.GetObjectDetailedMeta(keyPrefix + r.URL.Path)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				// set response header
+				for k, v := range meta {
+					for _, vv := range v {
+						w.Header().Add(k, vv)
+					}
+				}
+				// set response status code
+				w.WriteHeader(http.StatusOK)
+				// copy object to response writer
+				_, err = io.Copy(w, file)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				return
+			}
+		}
+		if r.Method == http.MethodHead {
+			isObjectExist, err := bucket.IsObjectExist(keyPrefix + r.URL.Path)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			if !isObjectExist {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			// get oss object meta
+			meta, err := bucket.GetObjectDetailedMeta(keyPrefix + r.URL.Path)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			// set response header
+			for k, v := range meta {
+				for _, vv := range v {
+					w.Header().Add(k, vv)
+				}
+			}
+			// set response status code
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		if r.Method == http.MethodPost {
+			// get file from request
+			file, header, err := r.FormFile("file")
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			defer file.Close()
+			// get file name
+			name := header.Filename
+			// get file size
+			size := header.Size
+			// get file mime type
+			mimeType := header.Header.Get("Content-Type")
+			// get file content
+			content, err := ioutil.ReadAll(file)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			// upload file to oss
+			err = bucket.PutObject(keyPrefix+r.URL.Path+name, bytes.NewReader(content))
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			// set response header
+			w.Header().Set("Content-Type", "application/json")
+			// write response
+			_, err = w.Write([]byte(`{"name":"` + name + `","size":` + strconv.FormatInt(size, 10) +
+				`,"type":"` + mimeType + `"}`))
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			return
+		}
+		if r.Method == http.MethodDelete {
+			// if object not exist, return 404
+			isObjectExist, err := bucket.IsObjectExist(keyPrefix + r.URL.Path)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			if !isObjectExist {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			// if is a directory, delete all objects in the directory
+			if strings.HasSuffix(r.URL.Path, "/") {
+				// list all objects in the directory
+				marker := oss.Marker("")
+				result := `<?xml version="1.0" encoding="utf-8" ?> 
+				<d:multistatus xmlns:d="DAV:">`
+				hasErr := false
+				for {
+					lor, err := bucket.ListObjects(oss.Prefix(keyPrefix+r.URL.Path), marker)
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					for _, object := range lor.Objects {
+						// delete object
+						err = bucket.DeleteObject(object.Key)
+						if err != nil {
+							hasErr = true
+							result += `
+							<d:response> 
+							  <d:href>` + r.URL.Path + `</d:href> 
+							  <d:status>HTTP/1.1 500 Internal Server Error</d:status> 
+							  <d:error></d:error>
+							</d:response> `
+							continue
+						}
+					}
+					if lor.IsTruncated {
+						marker = oss.Marker(lor.NextMarker)
+					} else {
+						break
+					}
+				}
+				result += `</d:multistatus>`
+				if hasErr {
+					// set response status code
+					w.WriteHeader(http.StatusMultiStatus)
+					// set response header
+					w.Header().Set("Content-Type", `application/xml; charset="utf-8"`)
+					w.Header().Set("Content-Length", strconv.Itoa(len(result)))
+					// write response
+					_, err = w.Write([]byte(result))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+					}
+				} else {
+					w.WriteHeader(http.StatusNoContent)
+				}
+				return
+			} else {
+				err = bucket.DeleteObject(keyPrefix + r.URL.Path)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+		}
+		if r.Method == http.MethodPut {
+			if strings.HasSuffix(r.URL.Path, "/") {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+
+			cache_control := r.Header.Get("Cache-Control")
+			content_disposition := r.Header.Get("Content-Disposition")
+			content_encoding := r.Header.Get("Content-Encoding")
+			content_language := r.Header.Get("Content-Language")
+			content_type := r.Header.Get("Content-Type")
+			expires, err := http.ParseTime(r.Header.Get("Expires"))
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			parentDir := path.Dir(r.URL.Path)
+			if parentDir == "." {
+				parentDir = "/"
+			}
+			isParentDirExist, err := bucket.IsObjectExist(keyPrefix + parentDir)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			if !isParentDirExist {
+				w.WriteHeader(http.StatusConflict)
+				return
+			}
+
+			// set oss object meta
+			options := []oss.Option{
+				oss.CacheControl(cache_control),
+				oss.ContentDisposition(content_disposition),
+				oss.ContentEncoding(content_encoding),
+				oss.ContentLanguage(content_language),
+				oss.ContentType(content_type),
+				oss.Expires(expires),
+			}
+
+			// put object
+			err = bucket.PutObject(keyPrefix+r.URL.Path, r.Body, options...)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		if r.Method == "COPY" {
+			// request like:
+			// COPY /~fielding/index.html HTTP/1.1
+			// Host: www.example.com
+			// Destination: http://www.example.com/users/f/fielding/index.html
+
+			isSourceExist, err := bucket.IsObjectExist(keyPrefix + r.URL.Path)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			if !isSourceExist {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+
+			// check if destination object exist
+			destination := r.Header.Get("Destination")
+			if destination == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			if !strings.HasSuffix(r.URL.Path, "/") {
+				// COPY for Non-collection Resources
+				// copy object
+				// if no overwrite
+				if r.Header.Get("Overwrite") == "F" {
+					isDestExist, err := bucket.IsObjectExist(keyPrefix + destination)
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					if isDestExist {
+						w.WriteHeader(http.StatusPreconditionFailed)
+						return
+					}
+				}
+				_, err = bucket.CopyObject(keyPrefix+r.URL.Path, keyPrefix+destination)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				w.WriteHeader(http.StatusCreated)
+				return
+
+			} else {
+				// COPY for Collection Resources
+				// list all objects in the directory
+				marker := oss.Marker("")
+				result := `<?xml version="1.0" encoding="utf-8" ?><d:multistatus xmlns:d="DAV:">`
+				hasErr := false
+				for {
+					lor, err := bucket.ListObjects(oss.Prefix(keyPrefix+r.URL.Path), marker)
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					for _, object := range lor.Objects {
+						// copy object
+						// if no overwrite
+						if r.Header.Get("Overwrite") == "F" {
+							isDestExist, err := bucket.IsObjectExist(keyPrefix + destination + strings.TrimPrefix(object.Key, keyPrefix+r.URL.Path))
+							if err != nil {
+								hasErr = true
+								result += `
+											<d:response> 
+											  <d:href>` + r.URL.Path + `</d:href> 
+											  <d:status>HTTP/1.1 500 Internal Server Error</d:status> 
+											  <d:error></d:error>
+											</d:response> `
+								continue
+							}
+							if isDestExist {
+								hasErr = true
+								result += `
+											<d:response> 
+											  <d:href>` + r.URL.Path + `</d:href> 
+											  <d:status>HTTP/1.1 412 Precondition Failed</d:status> 
+											  <d:error></d:error>
+											</d:response> `
+								continue
+							}
+						}
+						_, err = bucket.CopyObject(object.Key, keyPrefix+destination+strings.TrimPrefix(object.Key, keyPrefix+r.URL.Path))
+						if err != nil {
+							hasErr = true
+							result += `
+											<d:response> 
+											  <d:href>` + r.URL.Path + `</d:href> 
+											  <d:status>HTTP/1.1 500 Internal Server Error</d:status> 
+											  <d:error></d:error>
+											</d:response> `
+							continue
+						}
+					}
+					if lor.IsTruncated {
+						marker = oss.Marker(lor.NextMarker)
+					} else {
+						break
+					}
+				}
+				result += `</d:multistatus>`
+				if hasErr {
+					// set response status code
+					w.WriteHeader(http.StatusMultiStatus)
+					// set response header
+					w.Header().Set("Content-Type", `application/xml; charset="utf-8"`)
+					w.Header().Set("Content-Length", strconv.Itoa(len(result)))
+					// write response
+					_, err = w.Write([]byte(result))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+					}
+				} else {
+					w.WriteHeader(http.StatusNoContent)
+				}
+				return
+			}
+		}
+		if r.Method == "MOVE" {
+			// request like:
+			// MOVE /~fielding/index.html HTTP/1.1
+			// Host: www.example.com
+			// Destination: http://www.example.com/users/f/fielding/index.html
+
+			isSourceExist, err := bucket.IsObjectExist(keyPrefix + r.URL.Path)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			if !isSourceExist {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+
+			// check if destination object exist
+			destination := r.Header.Get("Destination")
+			if destination == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			if !strings.HasSuffix(r.URL.Path, "/") {
+				// COPY for Non-collection Resources
+				// move object
+				// if no overwrite
+				if r.Header.Get("Overwrite") == "F" {
+					isDestExist, err := bucket.IsObjectExist(keyPrefix + destination)
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					if isDestExist {
+						w.WriteHeader(http.StatusPreconditionFailed)
+						return
+					}
+				}
+				_, err = bucket.CopyObject(keyPrefix+r.URL.Path, keyPrefix+destination)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				// delete source object
+				err = bucket.DeleteObject(keyPrefix + r.URL.Path)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				w.WriteHeader(http.StatusCreated)
+				return
+
+			} else {
+				// MOVE for Collection Resources
+				// list all objects in the directory
+				marker := oss.Marker("")
+				result := `<?xml version="1.0" encoding="utf-8" ?><d:multistatus xmlns:d="DAV:">`
+				hasErr := false
+				for {
+					lor, err := bucket.ListObjects(oss.Prefix(keyPrefix+r.URL.Path), marker)
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					for _, object := range lor.Objects {
+						// move object
+						// if no overwrite
+						if r.Header.Get("Overwrite") == "F" {
+							isDestExist, err := bucket.IsObjectExist(keyPrefix + destination + strings.TrimPrefix(object.Key, keyPrefix+r.URL.Path))
+							if err != nil {
+								hasErr = true
+								result += `
+											<d:response> 
+											  <d:href>` + r.URL.Path + `</d:href> 
+											  <d:status>HTTP/1.1 500 Internal Server Error</d:status> 
+											  <d:error></d:error>
+											</d:response> `
+								continue
+							}
+							if isDestExist {
+								hasErr = true
+								result += `
+											<d:response> 
+											  <d:href>` + r.URL.Path + `</d:href> 
+											  <d:status>HTTP/1.1 412 Precondition Failed</d:status> 
+											  <d:error></d:error>
+											</d:response> `
+								continue
+							}
+						}
+						_, err = bucket.CopyObject(object.Key, keyPrefix+destination+strings.TrimPrefix(object.Key, keyPrefix+r.URL.Path))
+						if err != nil {
+							hasErr = true
+							result += `
+											<d:response> 
+											  <d:href>` + r.URL.Path + `</d:href> 
+											  <d:status>HTTP/1.1 500 Internal Server Error</d:status> 
+											  <d:error></d:error>
+											</d:response> `
+							continue
+						}
+						// delete source object
+						err = bucket.DeleteObject(keyPrefix + r.URL.Path)
+						if err != nil {
+							hasErr = true
+							result += `
+											<d:response> 
+											  <d:href>` + r.URL.Path + `</d:href> 
+											  <d:status>HTTP/1.1 500 Internal Server Error</d:status> 
+											  <d:error></d:error>
+											</d:response> `
+							continue
+						}
+					}
+					if lor.IsTruncated {
+						marker = oss.Marker(lor.NextMarker)
+					} else {
+						break
+					}
+				}
+				result += `</d:multistatus>`
+				if hasErr {
+					// set response status code
+					w.WriteHeader(http.StatusMultiStatus)
+					// set response header
+					w.Header().Set("Content-Type", `application/xml; charset="utf-8"`)
+					w.Header().Set("Content-Length", strconv.Itoa(len(result)))
+					// write response
+					_, err = w.Write([]byte(result))
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+					}
+				} else {
+					w.WriteHeader(http.StatusNoContent)
+				}
+				return
+			}
+		}
+		if r.Method == "LOCK" {
+			// LOCK
+			// check if the object exists
+			isExist, err := bucket.IsObjectExist(keyPrefix + r.URL.Path)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			if !isExist {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			// return 500 because we don't support lock
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if r.Method == "UNLOCK" {
+			// UNLOCK
+			// check if the object exists
+			isExist, err := bucket.IsObjectExist(keyPrefix + r.URL.Path)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			if !isExist {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			// return 500 because we don't support lock
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}))
