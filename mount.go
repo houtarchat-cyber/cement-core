@@ -5,9 +5,9 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime"
 	"net/http"
+	"os"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -256,7 +256,7 @@ func Serve(bind, keyPrefix string) error {
 					return
 				}
 				// get html from mount.html
-				htmlB, err := ioutil.ReadFile("mount.html")
+				htmlB, err := os.ReadFile("mount.html")
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
 					return
@@ -294,7 +294,8 @@ func Serve(bind, keyPrefix string) error {
 					lastModified := object.LastModified
 					// human readable last modified
 					var lastModifiedStr string
-					if time.Now().Sub(lastModified) < 24*time.Hour {
+					// if time.Now().Sub(lastModified) < 24*time.Hour {
+					if time.Since(lastModified) < 24*time.Hour {
 						lastModifiedStr = lastModified.In(time.Local).Format("15:04")
 					} else {
 						lastModifiedStr = lastModified.In(time.Local).Format("2006-01-02")
@@ -386,7 +387,7 @@ func Serve(bind, keyPrefix string) error {
 			// get file mime type
 			mimeType := header.Header.Get("Content-Type")
 			// get file content
-			content, err := ioutil.ReadAll(file)
+			content, err := io.ReadAll(file)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return

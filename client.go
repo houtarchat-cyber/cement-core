@@ -2,14 +2,14 @@ package cement
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 	"gopkg.in/yaml.v2"
 )
 
 func ReadConfig() (string, string, string, string) {
-	yamlFile, err := ioutil.ReadFile("access_key.yaml")
+	yamlFile, err := os.ReadFile("access_key.yaml")
 	if err != nil {
 		fmt.Println(err.Error())
 	}

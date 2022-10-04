@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"strings"
 )
 
@@ -28,7 +28,7 @@ func UserLogin(username string, password string) error {
 
 	defer pwdfile.Close()
 
-	pwd, err := ioutil.ReadAll(pwdfile)
+	pwd, err := io.ReadAll(pwdfile)
 	if err != nil {
 		return err
 	}

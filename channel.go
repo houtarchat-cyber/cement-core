@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -81,7 +81,7 @@ func ChannelReceive(channelname string) ([]Messages, error) {
 
 	defer channelfile.Close()
 
-	channel, err := ioutil.ReadAll(channelfile)
+	channel, err := io.ReadAll(channelfile)
 	if err != nil {
 		return nil, err
 	}
