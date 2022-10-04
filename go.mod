@@ -1,4 +1,4 @@
-module cement
+module github.com/houtarchat-cyber/cement-core
 
 go 1.19
 
