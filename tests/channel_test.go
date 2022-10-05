@@ -1,8 +1,9 @@
 package cement_test
 
 import (
-	"github.com/houtarchat-cyber/cement-core"
 	"testing"
+
+	"github.com/houtarchat-cyber/cement-core"
 )
 
 func TestChannel(t *testing.T) {
@@ -18,7 +19,7 @@ func TestChannel(t *testing.T) {
 		t.Error(err)
 	}
 	// get messages from cement channel
-	messages, err := cement.ChannelReceive(timestamp)
+	messages, _, err := cement.ChannelReceive(timestamp)
 	if err != nil {
 		t.Error(err)
 	}

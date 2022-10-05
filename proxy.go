@@ -34,21 +34,21 @@ func GetClashConfig(url string) []byte {
 	return body
 }
 
-func Proxy(conf []byte) {
+func Proxy(conf []byte) error {
 	currentDir, err := os.Getwd()
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	constant.SetHomeDir(currentDir)
 
 	err = initMMDB()
 	if err != nil {
-		panic(err)
+		return err
 	}
 	cfg, err := executor.ParseWithBytes(conf)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	executor.ApplyConfig(cfg, true)
@@ -57,6 +57,8 @@ func Proxy(conf []byte) {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
+
+	return nil
 }
 
 func initMMDB() error {

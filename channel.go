@@ -56,45 +56,46 @@ func ChannelSend(channelName string, username string, message string) error {
 	return err
 }
 
-type messages struct {
+type Messages struct {
 	Time     string `json:"time"`
 	Username string `json:"username"`
 	Message  string `json:"message"`
 }
 
-func ChannelReceive(channelName string) ([]messages, error) {
+func ChannelReceive(channelName string) ([]Messages, []string, error) {
 	bucket := getBucket()
 	channelName = base64.StdEncoding.EncodeToString([]byte(channelName))
 
 	isExist, err := bucket.IsObjectExist("channels/" + channelName)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if !isExist {
-		return nil, errors.New("channel not exist")
+		return nil, nil, errors.New("channel not exist")
 	}
 
 	channelFile, err := bucket.GetObject("channels/" + channelName)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	defer func(channelFile io.ReadCloser, err *error) {
 		*err = channelFile.Close()
 	}(channelFile, &err)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	channel, err := io.ReadAll(channelFile)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	var messageList []messages
+	var messageList []Messages
+	jsons := strings.Split(string(channel), "\n")
 
-	for _, line := range strings.Split(string(channel), "\n") {
-		var message messages
+	for _, line := range jsons {
+		var message Messages
 		err = json.Unmarshal([]byte(line), &message)
 		if err != nil {
 			break
@@ -106,5 +107,5 @@ func ChannelReceive(channelName string) ([]messages, error) {
 		messageList = append(messageList, message)
 	}
 
-	return messageList, nil
+	return messageList, jsons, nil
 }
