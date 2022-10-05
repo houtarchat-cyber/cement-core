@@ -10,61 +10,10 @@ import (
 	"github.com/houtarchat-cyber/cement-core"
 )
 
-//export UserLogin
-func UserLogin(username, password string) error {
-	return cement.UserLogin(username, password)
-}
-
-//export UserCreate
-func UserCreate(username, password string) error {
-	return cement.UserCreate(username, password)
-}
-
-//export GetTimestamp
-func GetTimestamp() string {
-	return cement.GetTimestamp()
-}
-
-//export GetCaptcha
-func GetCaptcha(timestamp string) string {
-	return cement.GetCaptcha(timestamp)
-}
-
-//export CheckCaptcha
-func CheckCaptcha(captcha, timestamp string) bool {
-	return cement.CheckCaptcha(captcha, timestamp)
-}
-
-//export Serve
-func Serve(bind, keyPrefix string) error {
-	return cement.Serve(bind, keyPrefix)
-}
-
-//export ChannelCreate
-func ChannelCreate(channelName string) error {
-	return cement.ChannelCreate(channelName)
-}
-
-//export ChannelSend
-func ChannelSend(channelName, username, message string) error {
-	return cement.ChannelSend(channelName, username, message)
-}
-
-//export ChannelReceive
-func ChannelReceive(channelName string) ([]string, error) {
-	_, jsons, err := cement.ChannelReceive(channelName)
-	return jsons, err
-}
-
-//export Proxy
-func Proxy(url string) error {
-	return cement.Proxy(cement.GetClashConfig(url))
-}
-
 func main() {
 	// 1. ./cement proxy <url>
 	if len(os.Args) == 3 && os.Args[1] == "proxy" {
-		err := Proxy(os.Args[2])
+		err := cement.Proxy(cement.GetClashConfig(os.Args[2]))
 		if err != nil {
 			panic(err)
 		}
@@ -73,12 +22,12 @@ func main() {
 	// 2. ./cement serve <port>
 	if len(os.Args) == 3 && os.Args[1] == "serve" {
 		// login first
-		err := UserLogin(os.Getenv("CMT_USER"), os.Getenv("CMT_PASS"))
+		err := cement.UserLogin(os.Getenv("CMT_USER"), os.Getenv("CMT_PASS"))
 		if err != nil {
 			panic(err)
 		}
 		// serve
-		err = Serve(os.Args[2], os.Getenv("CMT_USER"))
+		err = cement.Serve(os.Args[2], os.Getenv("CMT_USER"))
 		if err != nil {
 			panic(err)
 		}
@@ -86,7 +35,7 @@ func main() {
 	}
 	// 3. ./cement channel create <channelName>
 	if len(os.Args) == 4 && os.Args[1] == "channel" && os.Args[2] == "create" {
-		err := ChannelCreate(os.Args[3])
+		err := cement.ChannelCreate(os.Args[3])
 		if err != nil {
 			panic(err)
 		}
@@ -94,7 +43,7 @@ func main() {
 	}
 	// 4. ./cement channel send <channelName> <message>
 	if len(os.Args) == 5 && os.Args[1] == "channel" && os.Args[2] == "send" {
-		err := ChannelSend(os.Args[3], os.Getenv("CMT_USER"), os.Args[4])
+		err := cement.ChannelSend(os.Args[3], os.Getenv("CMT_USER"), os.Args[4])
 		if err != nil {
 			panic(err)
 		}
@@ -113,18 +62,24 @@ func main() {
 	}
 	// 6. ./cement user login <username> <password>
 	if len(os.Args) == 5 && os.Args[1] == "user" && os.Args[2] == "login" {
-		err := UserLogin(os.Args[3], os.Args[4])
+		err := cement.UserLogin(os.Args[3], os.Args[4])
 		if err != nil {
 			panic(err)
 		}
-		os.Setenv("CMT_USER", os.Args[3])
-		os.Setenv("CMT_PASS", os.Args[4])
+		err = os.Setenv("CMT_USER", os.Args[3])
+		if err != nil {
+			panic(err)
+		}
+		err = os.Setenv("CMT_PASS", os.Args[4])
+		if err != nil {
+			panic(err)
+		}
 		return
 	}
 	// 7. ./cement user create <username> <password>
 	if len(os.Args) == 5 && os.Args[1] == "user" && os.Args[2] == "create" {
-		timestamp := GetTimestamp()
-		captcha := GetCaptcha(timestamp)
+		timestamp := cement.GetTimestamp()
+		captcha := cement.GetCaptcha(timestamp)
 		decoded, err := base64.StdEncoding.DecodeString(captcha)
 		if err != nil {
 			panic(err)
@@ -176,12 +131,15 @@ func main() {
 		// check captcha
 		var input string
 		fmt.Print("请输入验证码：")
-		fmt.Scanln(&input)
-		if !CheckCaptcha(input, timestamp) {
+		_, err = fmt.Scanln(&input)
+		if err != nil {
+			panic(err)
+		}
+		if !cement.CheckCaptcha(input, timestamp) {
 			panic("验证码错误")
 		}
 
-		err = UserCreate(os.Args[3], os.Args[4])
+		err = cement.UserCreate(os.Args[3], os.Args[4])
 		if err != nil {
 			panic(err)
 		}
@@ -240,11 +198,9 @@ func main() {
 		}
 	}
 	if len(os.Args) == 1 {
-		asciiart := " ______   ______   ___ __ __   ______   ___   __    _________  \n/_____/\\ /_____/\\ /__//_//_/\\ /_____/\\ /__/\\ /__/\\ /________/\\ \n\\:::__\\/ \\::::_\\/_\\::\\| \\| \\ \\\\::::_\\/_\\::\\_\\\\  \\ \\\\__.::.__\\/ \n \\:\\ \\  __\\:\\/___/\\\\:.      \\ \\\\:\\/___/\\\\:. `-\\  \\ \\  \\::\\ \\   \n  \\:\\ \\/_/\\\\::___\\/_\\:.\\-/\\  \\ \\\\::___\\/_\\:. _    \\ \\  \\::\\ \\  \n   \\:\\_\\ \\ \\\\:\\____/\\\\. \\  \\  \\ \\\\:\\____/\\\\. \\`-\\  \\ \\  \\::\\ \\ \n    \\_____\\/ \\_____\\/ \\__\\/ \\__\\/ \\_____\\/ \\__\\/ \\__\\/   \\__\\/ \n                                                               "
-		fmt.Println(asciiart)
+		fmt.Println(" ______   ______   ___ __ __   ______   ___   __    _________  \n/_____/\\ /_____/\\ /__//_//_/\\ /_____/\\ /__/\\ /__/\\ /________/\\ \n\\:::__\\/ \\::::_\\/_\\::\\| \\| \\ \\\\::::_\\/_\\::\\_\\\\  \\ \\\\__.::.__\\/ \n \\:\\ \\  __\\:\\/___/\\\\:.      \\ \\\\:\\/___/\\\\:. `-\\  \\ \\  \\::\\ \\   \n  \\:\\ \\/_/\\\\::___\\/_\\:.\\-/\\  \\ \\\\::___\\/_\\:. _    \\ \\  \\::\\ \\  \n   \\:\\_\\ \\ \\\\:\\____/\\\\. \\  \\  \\ \\\\:\\____/\\\\. \\`-\\  \\ \\  \\::\\ \\ \n    \\_____\\/ \\_____\\/ \\__\\/ \\__\\/ \\_____\\/ \\__\\/ \\__\\/   \\__\\/ \n                                                               ")
 		for {
 			fmt.Print("cement> ")
-			// to read spaces, use bufio
 			reader := bufio.NewReader(os.Stdin)
 			input, _ := reader.ReadString('\n')
 			input = strings.TrimSpace(input)

@@ -56,13 +56,13 @@ func ChannelSend(channelName string, username string, message string) error {
 	return err
 }
 
-type Messages struct {
+type messages struct {
 	Time     string `json:"time"`
 	Username string `json:"username"`
 	Message  string `json:"message"`
 }
 
-func ChannelReceive(channelName string) ([]Messages, []string, error) {
+func ChannelReceive(channelName string) ([]messages, []string, error) {
 	bucket := getBucket()
 	channelName = base64.StdEncoding.EncodeToString([]byte(channelName))
 
@@ -91,11 +91,11 @@ func ChannelReceive(channelName string) ([]Messages, []string, error) {
 		return nil, nil, err
 	}
 
-	var messageList []Messages
+	var messageList []messages
 	jsons := strings.Split(string(channel), "\n")
 
 	for _, line := range jsons {
-		var message Messages
+		var message messages
 		err = json.Unmarshal([]byte(line), &message)
 		if err != nil {
 			break
